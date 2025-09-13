@@ -3,7 +3,7 @@
 
 // Use your computer's IP address for iOS/Android devices
 // This should match your computer's local network IP address
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://192.168.1.3:3000/api';
 
 class ApiService {
   constructor() {
@@ -37,7 +37,7 @@ class ApiService {
     } catch (error) {
       console.error('API Request failed:', error);
       if (error instanceof TypeError && error.message.includes('Network request failed')) {
-        throw new Error('Cannot connect to backend server. Make sure the server is running on http://localhost:3000');
+        throw new Error('Cannot connect to backend server. Make sure the server is running on http://192.168.1.3:3000');
       }
       throw error;
     }

@@ -162,11 +162,11 @@ export const ReminderInput = () => {
         .replace(/(\d+)\s*times?/i, '')
         .trim();
 
-      // Add reminder with voice settings
+      // Add reminder with voice settings, passing the original input so backend can parse time correctly
       const reminder = await addReminder(reminderText || input, parsedTime, 'medium', {
         voiceEnabled: voiceEnabled,
         repeatCount: detectedRepeatCount
-      });
+      }, input);
       setInput('');
       
       // Show success feedback with voice confirmation

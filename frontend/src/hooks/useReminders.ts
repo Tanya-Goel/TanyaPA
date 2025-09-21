@@ -241,7 +241,7 @@ export const useReminders = () => {
   // Note: Reminder checking is now handled by VoiceReminderManager via WebSocket
   // This prevents duplicate processing and ensures real-time notifications
 
-  const addReminder = useCallback(async (text: string, dueTime: Date, priority: 'low' | 'medium' | 'high' = 'medium', voiceSettings?: { voiceEnabled?: boolean; repeatCount?: number }) => {
+  const addReminder = useCallback(async (text: string, dueTime: Date, priority: 'low' | 'medium' | 'high' = 'medium', voiceSettings?: { voiceEnabled?: boolean; repeatCount?: number }, originalInput?: string) => {
     try {
       // Check for repeat count in the text
       const repeatMatch = text.match(/(\d+)\s*times?/i);
@@ -250,17 +250,9 @@ export const useReminders = () => {
       // Clean the text (remove repeat count from reminder text)
       const cleanText = text.replace(/(\d+)\s*times?/i, '').trim();
       
-      // Format the reminder message for the backend
-      const timeString = dueTime.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
-      });
-      
-      const dateString = dueTime.toDateString();
-      const isTomorrow = dueTime.toDateString() !== new Date().toDateString();
-      
-      const reminderMessage = `Remind me ${isTomorrow ? 'tomorrow' : 'today'} at ${timeString} to ${cleanText}`;
+      // Use the original input if provided, otherwise use the cleaned text
+      // The backend's PersonalAssistant.parseTime() will handle the time parsing correctly
+      const reminderMessage = originalInput || `Remind me to ${cleanText}`;
       
       // Send to backend API with voice settings
       const response = await apiService.sendMessage(reminderMessage);

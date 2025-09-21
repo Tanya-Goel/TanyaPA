@@ -109,7 +109,8 @@ class ReminderMonitor {
     // New system: check datetime field
     if (reminder.datetime) {
       const reminderTime = new Date(reminder.datetime);
-      // Trigger when the reminder time is reached or just passed (within 30 seconds tolerance)
+      // Only trigger when the reminder time has been reached or just passed (within 30 seconds tolerance)
+      // This ensures reminders are scheduled for the future and don't fire immediately
       const timeDiff = now.getTime() - reminderTime.getTime();
       return timeDiff >= 0 && timeDiff <= 30000; // Within 30 seconds of exact time
     }

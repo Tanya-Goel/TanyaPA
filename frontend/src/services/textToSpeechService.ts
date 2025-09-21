@@ -345,10 +345,12 @@ class TextToSpeechService {
 
       // Repeat if requested
       if (options.repeat && options.repeatCount && options.repeatCount > 1) {
-        const delay = options.delay || 2000; // 2 second delay between repeats
+        const delay = options.delay || 0; // No delay between repeats for exact timing
         
         for (let i = 1; i < options.repeatCount; i++) {
-          await new Promise(resolve => setTimeout(resolve, delay));
+          if (delay > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
           await this.speak(formattedText, { 
             rate: 0.8, 
             pitch: 1.1,

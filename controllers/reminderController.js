@@ -56,7 +56,7 @@ const reminderController = {
   // GET /reminders - Get all reminders with filters
   getAllReminders: async (req, res) => {
     try {
-      const { filter = 'all' } = req.query;
+      const { filter = 'active' } = req.query; // Changed default to 'active'
       
       let query = {};
       let reminders = [];
@@ -72,13 +72,28 @@ const reminderController = {
         const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
         
         query.datetime = { $gte: startOfDay, $lt: endOfDay };
+      } else if (filter === 'active') {
+        // Default: only return active reminders (not completed, not too old)
+        const now = new Date();
+        const oneWeekAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)); // 7 days ago
+        
+        query = {
+          status: { $ne: 'completed' }, // Exclude completed reminders
+          datetime: { $gte: oneWeekAgo } // Only reminders from the last 7 days
+        };
+      } else if (filter === 'all') {
+        // Only return all when explicitly requested
+        query = {};
       }
 
       reminders = await databaseService.getReminders(query);
+      console.log('🔍 Backend query result:', reminders.length, 'reminders found with filter:', filter);
+      console.log('🔍 Reminder statuses:', reminders.map(r => ({ id: r._id, text: r.text, status: r.status })));
 
       // Separate reminders into categories
       const pendingReminders = reminders.filter(r => r.status === 'pending');
-      const completedReminders = reminders.filter(r => r.status === 'completed');
+      // For 'active' filter, completed reminders should already be excluded by the query
+      const completedReminders = filter === 'active' ? [] : reminders.filter(r => r.status === 'completed');
       
       const today = new Date();
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -151,6 +166,8 @@ const reminderController = {
         lastSnoozedAt
       } = req.body;
 
+      // console.log('🔄 Updating reminder:', id, 'with data:', req.body);
+
       // Allow status-only updates (for marking complete/incomplete)
       if (!text && !datetime && !status && voiceEnabled === undefined && !repeatCount && snoozeCount === undefined && !lastSnoozedAt) {
         return res.status(400).json({ 
@@ -190,7 +207,6 @@ const reminderController = {
           error: "Reminder not found" 
         });
       }
-
       res.json({ 
         success: true,
         message: "Reminder updated successfully", 

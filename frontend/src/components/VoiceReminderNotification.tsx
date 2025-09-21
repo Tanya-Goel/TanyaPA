@@ -16,16 +16,14 @@ import {
 import { Reminder } from '@/types/reminder';
 import textToSpeechService from '@/services/textToSpeechService';
 import voiceCommandService from '@/services/voiceCommandService';
+import apiService from '@/services/apiService';
 import { toast } from '@/hooks/use-toast';
 
 interface VoiceReminderNotificationProps {
   reminder: Reminder;
   onSnooze: (reminderId: string, minutes: number) => void;
   onDismiss: (reminderId: string) => void;
-  onRepeat: (reminderId: string) => void;
-  onSetRepeat: (reminderId: string, repeatCount: number) => void;
   autoStart?: boolean;
-  repeatCount?: number;
   showVoiceControls?: boolean;
 }
 
@@ -33,19 +31,14 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
   reminder,
   onSnooze,
   onDismiss,
-  onRepeat,
-  onSetRepeat,
   autoStart = true,
-  repeatCount = 1,
   showVoiceControls = true
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechEnabled, setSpeechEnabled] = useState(true);
-  const [repeatCountdown, setRepeatCountdown] = useState(repeatCount);
   const [isVisible, setIsVisible] = useState(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const repeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-start speaking when component mounts
   useEffect(() => {
@@ -57,7 +50,6 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
 
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (repeatTimeoutRef.current) clearTimeout(repeatTimeoutRef.current);
       textToSpeechService.stop();
     };
   }, [autoStart, speechEnabled, isVisible]);
@@ -90,9 +82,9 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
       
       // Try to speak even if user hasn't interacted yet
       await textToSpeechService.speakReminder(reminder.text, {
-        repeat: repeatCount > 1,
-        repeatCount: repeatCount,
-        delay: 3000
+        repeat: false,
+        repeatCount: 1,
+        delay: 0
       });
       setIsSpeaking(false);
     } catch (error) {
@@ -130,16 +122,10 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
 
   const handleVoiceDismiss = async () => {
     try {
-      // Call backend API to dismiss reminder via voice
-      const response = await fetch(`http://localhost:3000/api/reminders/${reminder.id}/dismiss`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ method: 'voice' }),
-      });
+      // Use apiService to dismiss reminder via voice
+      const response = await apiService.dismissReminder(reminder.id, 'voice');
 
-      if (response.ok) {
+      if (response.success) {
         console.log('✅ Reminder dismissed via voice command');
         onDismiss(reminder.id);
         setIsVisible(false);
@@ -157,15 +143,7 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
     }
   };
 
-  const handleRepeat = () => {
-    onRepeat(reminder.id);
-    startSpeaking();
-  };
-
-  const handleSetRepeat = (newRepeatCount: number) => {
-    onSetRepeat(reminder.id, newRepeatCount);
-    setRepeatCountdown(newRepeatCount);
-  };
+  // Removed repeat functionality
 
   const toggleSpeech = () => {
     if (isSpeaking) {
@@ -202,25 +180,7 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
         }
         break;
         
-      case 'repeat':
-        toast({
-          title: "Repeating Reminder",
-          description: "Voice command: Repeat",
-          duration: 2000,
-        });
-        onRepeat(reminder.id);
-        break;
-        
-      case 'set_repeat':
-        if (command.repeatCount) {
-          toast({
-            title: "Repeat Count Set",
-            description: `Voice command: Repeat ${command.repeatCount} times`,
-            duration: 2000,
-          });
-          onSetRepeat(reminder.id, command.repeatCount);
-        }
-        break;
+      // Removed repeat voice commands
         
       case 'stop':
         if (isSpeaking) {
@@ -378,21 +338,12 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRepeat}
-              className="text-purple-600 border-purple-200 hover:bg-purple-50"
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Repeat
-            </Button>
+          <div className="flex justify-center">
             <Button
               variant="default"
               size="sm"
               onClick={handleDismiss}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white px-8"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Done
@@ -409,9 +360,6 @@ export const VoiceReminderNotification: React.FC<VoiceReminderNotificationProps>
             <div className="text-xs text-blue-600 space-y-1">
               <p>• "Snooze for 10 minutes"</p>
               <p>• "Dismiss" or "Done"</p>
-              <p>• "Repeat" or "Say again"</p>
-              <p>• "Repeat this 3 times"</p>
-              <p>• "Remind me 5 times"</p>
               <p>• "Stop speaking"</p>
             </div>
           </div>

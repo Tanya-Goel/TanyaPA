@@ -7,7 +7,7 @@ class ReminderMonitor {
   constructor() {
     this.isRunning = false;
     this.checkInterval = null;
-    this.checkIntervalMs = 5000; // Check every 5 seconds for better accuracy
+    this.checkIntervalMs = 1000; // Check every 1 second for exact timing
     this.notificationClients = new Map(); // Store connected clients for notifications
   }
 
@@ -24,7 +24,7 @@ class ReminderMonitor {
     // Check immediately
     this.checkReminders();
     
-    // Then check every 5 seconds
+    // Then check every 1 second for exact timing
     this.checkInterval = setInterval(() => {
       this.checkReminders();
     }, this.checkIntervalMs);
@@ -52,9 +52,14 @@ class ReminderMonitor {
       
       for (const reminder of reminders) {
         if (this.isReminderDue(reminder, currentTimeString, currentDateString, now)) {
+          // Mark as notified BEFORE triggering to prevent duplicates
+          await this.markReminderAsNotified(reminder._id);
           await this.triggerReminder(reminder);
         }
       }
+      
+      // Clean up old reminders (older than 7 days)
+      await this.cleanupOldReminders();
     } catch (error) {
       console.error('❌ Error checking reminders:', error);
     }
@@ -103,8 +108,9 @@ class ReminderMonitor {
     // New system: check datetime field
     if (reminder.datetime) {
       const reminderTime = new Date(reminder.datetime);
-      // Only trigger if the reminder time has actually passed (no early triggering)
-      return reminderTime <= now;
+      // Trigger when the reminder time is reached or just passed (within 1 second tolerance)
+      const timeDiff = now.getTime() - reminderTime.getTime();
+      return timeDiff >= 0 && timeDiff <= 1000; // Within 1 second of exact time
     }
     
     // Legacy system: check time and date fields
@@ -142,11 +148,8 @@ class ReminderMonitor {
         message: `🚨 REMINDER ALERT: ${reminder.text}`
       });
       
-      // Mark as notified after a longer delay to allow frontend to process the alert
-      setTimeout(async () => {
-        await this.markReminderAsNotified(reminder._id);
-        console.log(`✅ Reminder marked as notified after delay: ${reminder.text}`);
-      }, 300000); // 5 minute delay to allow voice alerts to play and user to interact
+      // Reminder is already marked as notified in checkReminders to prevent duplicates
+      console.log(`✅ Reminder triggered: ${reminder.text}`);
       
       // Log the reminder trigger
       console.log(`✅ Reminder triggered: ${reminder.text}`);
@@ -205,6 +208,50 @@ class ReminderMonitor {
         this.removeNotificationClient(clientId);
       }
     });
+  }
+
+  // Clean up old reminders (older than 7 days)
+  async cleanupOldReminders() {
+    try {
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+      
+      if (databaseService.isMongoConnected) {
+        const Reminder = databaseService.getReminderModel();
+        const result = await Reminder.deleteMany({
+          $or: [
+            // Delete completed reminders older than 7 days
+            {
+              status: 'completed',
+              datetime: { $lt: sevenDaysAgo }
+            },
+            // Delete old pending reminders that are way overdue (older than 7 days)
+            {
+              status: 'pending',
+              datetime: { $lt: sevenDaysAgo }
+            }
+          ]
+        });
+        
+        if (result.deletedCount > 0) {
+          console.log(`🧹 Cleaned up ${result.deletedCount} old reminders`);
+        }
+      } else {
+        // Clean up in-memory storage
+        const initialCount = databaseService.inMemoryStorage.reminders.length;
+        databaseService.inMemoryStorage.reminders = databaseService.inMemoryStorage.reminders.filter(reminder => {
+          const reminderDate = new Date(reminder.datetime || reminder.date);
+          return reminderDate >= sevenDaysAgo;
+        });
+        
+        const cleanedCount = initialCount - databaseService.inMemoryStorage.reminders.length;
+        if (cleanedCount > 0) {
+          console.log(`🧹 Cleaned up ${cleanedCount} old reminders from memory`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error cleaning up old reminders:', error);
+    }
   }
 
   // Get monitoring status

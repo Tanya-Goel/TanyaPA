@@ -64,6 +64,13 @@ class PersonalAssistant {
       /in\s+(\d+)\s+(minutes?|seconds?|mins?|secs?|hours?|hrs?)\s+(.+)/i,
     ];
     
+    // Check for specific time reminder patterns (e.g., "remind me today at 2:00 PM to task")
+    const specificTimeReminderPatterns = [
+      /remind\s+me\s+(?:today|tomorrow)?\s*at\s+(\d{1,2}):?(\d{2})?\s*(am|pm)?\s+to\s+(.+)/i,
+      /remind\s+me\s+(?:today|tomorrow)?\s*at\s+(\d{1,2}):?(\d{2})?\s*(am|pm)?\s+(.+)/i,
+      /remind\s+me\s+to\s+(.+?)\s+(?:today|tomorrow)?\s*at\s+(\d{1,2}):?(\d{2})?\s*(am|pm)?/i,
+    ];
+    
     for (const pattern of timeBasedReminderPatterns) {
       const match = lowerInput.match(pattern);
       if (match) {
@@ -98,6 +105,70 @@ class PersonalAssistant {
           date: targetTime.toISOString().split('T')[0],
           dateWord: 'today',
           originalTime: `in ${amount} ${unit}`,
+          datetime: targetTime,
+          originalInput: input
+        };
+      }
+    }
+    
+    // Check for specific time reminder patterns (e.g., "remind me today at 2:00 PM to task")
+    for (const pattern of specificTimeReminderPatterns) {
+      const match = lowerInput.match(pattern);
+      if (match) {
+        let hours, minutes, ampm, task, dateWord;
+        
+        // Handle different pattern formats
+        if (pattern.source.includes('remind\\s+me\\s+to\\s+(.+?)\\s+(?:today|tomorrow)?\\s*at\\s+')) {
+          // Pattern: "remind me to task today at 2:00 PM"
+          task = match[1].trim();
+          hours = parseInt(match[2]);
+          minutes = parseInt(match[3] || 0);
+          ampm = match[4]?.toLowerCase();
+        } else {
+          // Other patterns: "remind me today at 2:00 PM to task"
+          hours = parseInt(match[1]);
+          minutes = parseInt(match[2] || 0);
+          ampm = match[3]?.toLowerCase();
+          task = match[4] ? match[4].trim() : '';
+        }
+        
+        // Convert to 24-hour format
+        if (ampm === 'pm' && hours !== 12) {
+          hours += 12;
+        } else if (ampm === 'am' && hours === 12) {
+          hours = 0;
+        }
+        
+        // Determine if it's today or tomorrow
+        const now = new Date();
+        const targetDate = new Date(now);
+        
+        // Check if the input contains "tomorrow"
+        if (input.toLowerCase().includes('tomorrow')) {
+          targetDate.setDate(now.getDate() + 1);
+          dateWord = 'tomorrow';
+        } else {
+          dateWord = 'today';
+        }
+        
+        // Create the target datetime
+        const targetTime = createDate(
+          targetDate.getFullYear(),
+          targetDate.getMonth(),
+          targetDate.getDate(),
+          hours,
+          minutes,
+          0,
+          0
+        );
+        
+        return {
+          type: 'reminder',
+          text: task,
+          time: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
+          date: targetTime.toISOString().split('T')[0],
+          dateWord: dateWord,
+          originalTime: `${hours}:${minutes.toString().padStart(2, '0')}${ampm ? ampm.toUpperCase() : ''}`,
           datetime: targetTime,
           originalInput: input
         };

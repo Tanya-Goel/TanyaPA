@@ -15,10 +15,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Reminder } from '@/types/reminder';
-import { VoiceReminderNotification } from './VoiceReminderNotification';
+// Removed VoiceReminderNotification import - user doesn't want popup cards
 import textToSpeechService from '@/services/textToSpeechService';
 import voiceCommandService from '@/services/voiceCommandService';
 import offlineReminderService from '@/services/offlineReminderService';
+import apiService from '@/services/apiService';
 import { useRemindersContext } from '@/contexts/RemindersContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -132,51 +133,36 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
                 if (!exists) {
                   console.log('🔔 Adding reminder from WebSocket to active reminders:', reminder.text);
                   
-                    // Check if we've already notified for this reminder
-                    if (!notifiedReminders.has(reminder.id)) {
-                      // Play voice reminder if voice is enabled
-                      if (isVoiceEnabled && reminder.voiceEnabled !== false) {
-                        console.log('🔊 Playing voice reminder:', reminder.text);
-                        
-                        // Force enable speech synthesis for reminder alerts
-                        textToSpeechService.enableSpeechSynthesis();
-                        
-                        // Try to play voice reminder with simplified error handling
-                        textToSpeechService.speakReminder(reminder.text, {
-                          repeat: false,
-                          repeatCount: reminder.repeatCount || 1,
-                          delay: 500
-                        }).then(() => {
-                          console.log('🔊 Voice reminder completed successfully');
-                        }).catch(error => {
-                          console.error('🔊 Voice reminder failed:', error);
-                          // Don't show error toast for voice failures to avoid spam
-                        });
-                      } else {
-                        console.log('🔊 Voice reminder skipped - isVoiceEnabled:', isVoiceEnabled, 'reminder.voiceEnabled:', reminder.voiceEnabled);
-                      }
-                    
-                    // Show toast notification for the reminder
-                    toast({
-                      title: "🔔 Reminder Alert",
-                      description: reminder.text,
-                      duration: 10000, // Show for 10 seconds
-                    });
-                    
-                    // Also show browser notification if permission is granted
-                    if (Notification.permission === 'granted') {
-                      // Use regular notification to avoid Service Worker issues
-                      try {
-                        new Notification('🔔 Reminder Alert', {
-                          body: reminder.text,
-                          icon: '/icon-192x192.png',
-                          tag: `reminder-${reminder.id}`,
-                          requireInteraction: true
-                        });
-                      } catch (error) {
-                        console.warn('Failed to show notification:', error);
-                      }
+                  // Check if we've already notified for this reminder
+                  if (!notifiedReminders.has(reminder.id)) {
+                    // Play voice reminder if voice is enabled
+                    if (isVoiceEnabled && reminder.voiceEnabled !== false) {
+                      console.log('🔊 Playing voice reminder:', reminder.text);
+                      
+                      // Force enable speech synthesis for reminder alerts
+                      textToSpeechService.enableSpeechSynthesis();
+                      
+                      // Try to play voice reminder with no delay
+                      textToSpeechService.speakReminder(reminder.text, {
+                        repeat: false,
+                        repeatCount: 1,
+                        delay: 0
+                      }).then(() => {
+                        console.log('🔊 Voice reminder completed successfully');
+                      }).catch(error => {
+                        console.error('🔊 Voice reminder failed:', error);
+                        // Don't show error toast for voice failures to avoid spam
+                      });
+                    } else {
+                      console.log('🔊 Voice reminder skipped - isVoiceEnabled:', isVoiceEnabled, 'reminder.voiceEnabled:', reminder.voiceEnabled);
                     }
+                  
+                    // Show simple toast notification only (no popup cards)
+                    toast({
+                      title: "🔔 Reminder",
+                      description: reminder.text,
+                      duration: 5000, // Show for 5 seconds
+                    });
                     
                     // Mark as notified
                     setNotifiedReminders(prev => new Set(prev).add(reminder.id));
@@ -252,50 +238,35 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
         
         // Show toast notifications for each new reminder
         newDueReminders.forEach(reminder => {
-            // Check if we've already notified for this reminder
-            if (!notifiedReminders.has(reminder.id)) {
-              // Play voice reminder if voice is enabled
-              if (isVoiceEnabled && reminder.voiceEnabled !== false) {
-                console.log('🔊 Playing voice reminder (polling):', reminder.text);
-                
-                // Force enable speech synthesis for reminder alerts
-                textToSpeechService.enableSpeechSynthesis();
-                
-                // Try to play voice reminder with simplified error handling
-                textToSpeechService.speakReminder(reminder.text, {
-                  repeat: false,
-                  repeatCount: reminder.repeatCount || 1,
-                  delay: 500
-                }).then(() => {
-                  console.log('🔊 Voice reminder completed successfully (polling)');
-                }).catch(error => {
-                  console.error('🔊 Voice reminder failed (polling):', error);
-                  // Don't show error toast for voice failures to avoid spam
-                });
-              } else {
-                console.log('🔊 Voice reminder skipped (polling) - isVoiceEnabled:', isVoiceEnabled, 'reminder.voiceEnabled:', reminder.voiceEnabled);
-              }
-            
-            toast({
-              title: "🔔 Reminder Alert",
-              description: reminder.text,
-              duration: 10000, // Show for 10 seconds
-            });
-            
-            // Also show browser notification if permission is granted
-            if (Notification.permission === 'granted') {
-              // Use regular notification to avoid Service Worker issues
-              try {
-                new Notification('🔔 Reminder Alert', {
-                  body: reminder.text,
-                  icon: '/icon-192x192.png',
-                  tag: `reminder-${reminder.id}`,
-                  requireInteraction: true
-                });
-              } catch (error) {
-                console.warn('Failed to show notification:', error);
-              }
+          // Check if we've already notified for this reminder
+          if (!notifiedReminders.has(reminder.id)) {
+            // Play voice reminder if voice is enabled
+            if (isVoiceEnabled && reminder.voiceEnabled !== false) {
+              console.log('🔊 Playing voice reminder (polling):', reminder.text);
+              
+              // Force enable speech synthesis for reminder alerts
+              textToSpeechService.enableSpeechSynthesis();
+              
+              // Try to play voice reminder with no delay
+              textToSpeechService.speakReminder(reminder.text, {
+                repeat: false,
+                repeatCount: 1,
+                delay: 0
+              }).then(() => {
+                console.log('🔊 Voice reminder completed successfully (polling)');
+              }).catch(error => {
+                console.error('🔊 Voice reminder failed (polling):', error);
+                // Don't show error toast for voice failures to avoid spam
+              });
+            } else {
+              console.log('🔊 Voice reminder skipped (polling) - isVoiceEnabled:', isVoiceEnabled, 'reminder.voiceEnabled:', reminder.voiceEnabled);
             }
+          
+            toast({
+              title: "🔔 Reminder",
+              description: reminder.text,
+              duration: 5000, // Show for 5 seconds
+            });
             
             // Mark as notified
             setNotifiedReminders(prev => new Set(prev).add(reminder.id));
@@ -306,9 +277,11 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
       }
     };
 
-    // Always run polling as fallback, but less frequently when WebSocket is connected
-    const interval = setInterval(checkDueReminders, wsConnection ? 300000 : 120000); // Further reduced frequency
-    checkDueReminders(); // Check immediately
+    // Only run polling as fallback when WebSocket is not connected
+    const interval = setInterval(checkDueReminders, wsConnection ? 600000 : 30000); // 10 minutes when WS connected, 30 seconds when not
+    if (!wsConnection) {
+      checkDueReminders(); // Only check immediately if no WebSocket connection
+    }
 
     return () => clearInterval(interval);
   }, [reminders, activeReminders, wsConnection]);
@@ -326,16 +299,10 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
 
   const handleDismiss = async (reminderId: string) => {
     try {
-      // Call the proper dismiss endpoint instead of delete
-      const response = await fetch(`http://localhost:3000/api/reminders/${reminderId}/dismiss`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ method: 'manual' }),
-      });
+      // Use apiService to dismiss the reminder
+      const response = await apiService.dismissReminder(reminderId, 'manual');
 
-      if (response.ok) {
+      if (response.success) {
         console.log('✅ Reminder dismissed successfully');
         setActiveReminders(prev => prev.filter(r => r.id !== reminderId));
         setNotifiedReminders(prev => {
@@ -371,58 +338,7 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
     }
   };
 
-  const handleRepeat = (reminderId: string) => {
-    const reminder = activeReminders.find(r => r.id === reminderId);
-    if (reminder && isVoiceEnabled) {
-      textToSpeechService.speakReminder(reminder.text, {
-        repeat: true,
-        repeatCount: 1,
-        delay: 1000
-      }).catch(error => {
-        console.error('Error repeating reminder:', error);
-      });
-    }
-  };
-
-  const handleSetRepeat = async (reminderId: string, repeatCount: number) => {
-    try {
-      // Update the reminder in the backend
-      const response = await fetch(`http://localhost:3000/api/reminders/${reminderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          repeatCount: repeatCount
-        }),
-      });
-
-      if (response.ok) {
-        // Update local state
-        setActiveReminders(prev => 
-          prev.map(r => 
-            r.id === reminderId 
-              ? { ...r, repeatCount: repeatCount }
-              : r
-          )
-        );
-        
-        toast({
-          title: "Repeat Count Updated",
-          description: `Reminder will now repeat ${repeatCount} times`,
-        });
-      } else {
-        throw new Error('Failed to update repeat count');
-      }
-    } catch (error) {
-      console.error('Error setting repeat count:', error);
-      toast({
-        title: "Update Failed",
-        description: "Could not update repeat count. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+  // Removed repeat functionality
 
   // Test voice functionality
   const testVoice = async () => {
@@ -524,24 +440,7 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
         </div>
       )}
 
-      {/* Active Voice Reminders */}
-      {activeReminders.length > 0 && (
-        <div className="space-y-4 mb-6">
-          {activeReminders.map(reminder => (
-            <VoiceReminderNotification
-              key={reminder.id}
-              reminder={reminder}
-              onSnooze={handleSnooze}
-              onDismiss={handleDismiss}
-              onRepeat={handleRepeat}
-              onSetRepeat={handleSetRepeat}
-              autoStart={isVoiceEnabled}
-              repeatCount={reminder.repeatCount || 1}
-              showVoiceControls={voiceCommandService.isServiceSupported()}
-            />
-          ))}
-        </div>
-      )}
+      {/* Active Voice Reminders - Removed popup cards as user doesn't want them */}
 
       {/* Voice Reminder Manager Card */}
       <Card className="w-full bg-gradient-electric/10 border-accent-electric/20">

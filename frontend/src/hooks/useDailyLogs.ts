@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { DailyLog } from '@/types/dailyLog';
 import { toast } from '@/hooks/use-toast';
 import apiService from '@/services/apiService';
@@ -50,8 +50,14 @@ export const useDailyLogs = () => {
     }
   }, []); // Empty dependency array to prevent infinite loops
 
-  // Don't auto-fetch on mount to prevent infinite loops
-  // Logs will be fetched when component explicitly calls refreshLogs
+  // Auto-fetch logs when the hook is first used
+  useEffect(() => {
+    if (!hasFetched.current) {
+      console.log('📝 useDailyLogs - First time, fetching logs...');
+      hasFetched.current = true;
+      fetchLogs();
+    }
+  }, [fetchLogs]);
 
   const addLog = useCallback(async (text: string, category: DailyLog['category'] = 'activity') => {
     console.log('📝 Adding log:', text, 'category:', category);
@@ -130,15 +136,10 @@ export const useDailyLogs = () => {
     setLogs(prev => prev.filter(l => l.id !== id));
     
     try {
-      // Call backend API to delete the log
-      const response = await fetch(`http://localhost:3000/api/logs/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Call backend API to delete the log using apiService
+      const response = await apiService.deleteLog(id);
 
-      if (response.ok) {
+      if (response.success) {
         toast({
           title: "Log Deleted",
           description: "The activity log has been removed.",
@@ -146,8 +147,7 @@ export const useDailyLogs = () => {
         console.log('✅ Log deleted successfully');
       } else {
         // If backend delete failed, restore the log to local state
-        const errorData = await response.json();
-        console.error('❌ Backend delete failed:', errorData);
+        console.error('❌ Backend delete failed:', response);
         
         // Restore the log to UI
         if (logToDelete) {
@@ -182,7 +182,7 @@ export const useDailyLogs = () => {
         return newSet;
       });
     }
-  }, []);
+  }, [logs]);
 
   const getTodayLogs = useCallback(() => {
     const today = new Date();
@@ -206,7 +206,7 @@ export const useDailyLogs = () => {
     return logs.filter(l => l.timestamp >= cutoff);
   }, [logs]);
 
-  return {
+  return useMemo(() => ({
     logs,
     loading,
     deleting,
@@ -216,5 +216,15 @@ export const useDailyLogs = () => {
     getTodayLogs,
     getLogsByCategory,
     getRecentLogs,
-  };
+  }), [
+    logs,
+    loading,
+    deleting,
+    addLog,
+    deleteLog,
+    fetchLogs,
+    getTodayLogs,
+    getLogsByCategory,
+    getRecentLogs,
+  ]);
 };

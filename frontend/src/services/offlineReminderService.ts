@@ -157,16 +157,21 @@ class OfflineReminderService {
     return true;
   }
 
-  // Mark reminder as completed
+  // Mark reminder as completed (delete it instead of marking as completed)
   markCompleted(id: string): boolean {
     const reminder = this.reminders.find(r => r.id === id);
     if (!reminder) return false;
 
-    reminder.isCompleted = true;
-    this.saveToStorage();
+    // Delete the reminder instead of just marking as completed
+    const index = this.reminders.findIndex(r => r.id === id);
+    if (index !== -1) {
+      this.reminders.splice(index, 1);
+      this.saveToStorage();
+      console.log('📱 Deleted offline reminder (marked as completed):', id);
+      return true;
+    }
 
-    console.log('📱 Marked offline reminder as completed:', id);
-    return true;
+    return false;
   }
 
   // Remove a reminder

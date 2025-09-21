@@ -95,9 +95,16 @@ class ApiService {
     return this.request(`/logs?filter=${filter}`);
   }
 
+  // Delete log
+  async deleteLog(logId: string): Promise<any> {
+    return this.request(`/logs/${logId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Get reminders
-  async getReminders(): Promise<any> {
-    return this.request('/reminders');
+  async getReminders(filter: string = 'active'): Promise<any> {
+    return this.request(`/reminders?filter=${filter}`);
   }
 
   // Dismiss reminder
@@ -108,6 +115,24 @@ class ApiService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ method }),
+    });
+  }
+
+  // Delete reminder
+  async deleteReminder(reminderId: string): Promise<any> {
+    return this.request(`/reminders/${reminderId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Update reminder
+  async updateReminder(reminderId: string, updateData: any): Promise<any> {
+    return this.request(`/reminders/${reminderId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
     });
   }
 

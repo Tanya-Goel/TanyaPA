@@ -17,18 +17,25 @@ export const useReminders = () => {
     console.log('🔄 Fetching reminders from backend...');
     setLoading(true);
     try {
-      const data = await apiService.getReminders();
+      const data = await apiService.getReminders('active'); // Use 'active' filter
       console.log('📊 Received reminders data:', data);
+      console.log('📊 Pending reminders from backend:', data.data?.pending?.length || 0);
+      console.log('📊 Completed reminders from backend:', data.data?.completed?.length || 0);
 
-      if (data.success && data.data) {
+      if (data && data.success && data.data) {
         const backendReminders: Reminder[] = [];
         
         console.log('🔔 Raw backend data:', data.data);
         console.log('🔔 Pending reminders from backend:', data.data.pending);
         
-        // Parse pending reminders
+        // Parse pending reminders (only process if status is actually pending)
         if (data.data.pending && Array.isArray(data.data.pending)) {
           data.data.pending.forEach((reminder: any) => {
+            // Double-check: only process if status is actually pending
+            if (reminder.status === 'completed') {
+              console.log('⚠️ Skipping completed reminder that was incorrectly returned as pending:', reminder.text);
+              return;
+            }
             // Handle different date formats from backend
             let dueTime: Date;
             if (reminder.datetime) {
@@ -47,21 +54,30 @@ export const useReminders = () => {
               dueTime = new Date(); // Fallback to current time
             }
             
-            backendReminders.push({
-              id: reminder._id,
-              text: reminder.text,
-              dueTime: dueTime,
-              isRecurring: false,
-              isCompleted: reminder.status === 'completed',
-              createdAt: new Date(reminder.createdAt || Date.now()),
-              priority: 'medium' as const,
-              notified: reminder.notified || false,
-            });
+            // Only add if it's not too old (within last 7 days)
+            const now = new Date();
+            const oneWeekAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            
+            if (dueTime >= oneWeekAgo) {
+              backendReminders.push({
+                id: reminder._id,
+                text: reminder.text,
+                dueTime: dueTime,
+                isRecurring: false,
+                isCompleted: reminder.status === 'completed',
+                createdAt: new Date(reminder.createdAt || Date.now()),
+                priority: 'medium' as const,
+                notified: reminder.notified || false,
+              });
+            } else {
+              console.log('🔔 Skipping old pending reminder:', reminder.text, 'dueTime:', dueTime);
+            }
           });
         }
         
-        // Parse completed reminders
+        // Parse completed reminders (only recent ones) - but for 'active' filter, this should be empty
         if (data.data.completed && Array.isArray(data.data.completed)) {
+          console.log('⚠️ Received completed reminders with active filter - this should not happen');
           data.data.completed.forEach((reminder: any) => {
             // Handle different date formats from backend
             let dueTime: Date;
@@ -81,16 +97,24 @@ export const useReminders = () => {
               dueTime = new Date(); // Fallback to current time
             }
             
-            backendReminders.push({
-              id: reminder._id,
-              text: reminder.text,
-              dueTime: dueTime,
-              isRecurring: false,
-              isCompleted: reminder.status === 'completed',
-              createdAt: new Date(reminder.createdAt || Date.now()),
-              priority: 'medium' as const,
-              notified: reminder.notified || false,
-            });
+            // Only add completed reminders from the last 7 days
+            const now = new Date();
+            const oneWeekAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            
+            if (dueTime >= oneWeekAgo) {
+              backendReminders.push({
+                id: reminder._id,
+                text: reminder.text,
+                dueTime: dueTime,
+                isRecurring: false,
+                isCompleted: reminder.status === 'completed',
+                createdAt: new Date(reminder.createdAt || Date.now()),
+                priority: 'medium' as const,
+                notified: reminder.notified || false,
+              });
+            } else {
+              console.log('🔔 Skipping old completed reminder:', reminder.text, 'dueTime:', dueTime);
+            }
           });
         }
         
@@ -99,11 +123,54 @@ export const useReminders = () => {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         
-        setReminders(sortedReminders);
-        console.log('✅ Reminders updated:', sortedReminders.length, 'reminders loaded (sorted by most recent first)');
+        // CRITICAL FIX: Merge with existing local state instead of replacing
+        // This prevents newly created reminders from being lost during auto-refresh
+        setReminders(prevReminders => {
+          // Create a map of existing reminders by ID for quick lookup
+          const existingRemindersMap = new Map(prevReminders.map(r => [r.id, r]));
+          
+          // Merge backend reminders with existing local reminders
+          const mergedReminders: Reminder[] = [];
+          
+          // Add all backend reminders
+          sortedReminders.forEach(backendReminder => {
+            mergedReminders.push(backendReminder);
+          });
+          
+          // Add any local reminders that aren't in the backend response
+          // This preserves newly created reminders that might not be in backend yet
+          prevReminders.forEach(localReminder => {
+            if (!existingRemindersMap.has(localReminder.id) || 
+                !sortedReminders.some(br => br.id === localReminder.id)) {
+              // Only add if it's a recent reminder (created within last 5 minutes)
+              // This prevents old stale local reminders from persisting
+              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+              if (new Date(localReminder.createdAt) > fiveMinutesAgo) {
+                console.log('🔔 Preserving local reminder not yet in backend:', localReminder.id);
+                mergedReminders.push(localReminder);
+              }
+            }
+          });
+          
+          // Sort the merged list by creation date (most recent first)
+          const finalSorted = mergedReminders.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          
+          console.log('✅ Reminders merged:', {
+            backendCount: sortedReminders.length,
+            localCount: prevReminders.length,
+            finalCount: finalSorted.length,
+            preserved: finalSorted.length - sortedReminders.length
+          });
+          
+          return finalSorted;
+        });
+        
+        console.log('✅ Reminders updated:', sortedReminders.length, 'reminders loaded from backend');
         if (sortedReminders.length > 0) {
-          console.log('📋 Most recent reminder:', sortedReminders[0]);
-          console.log('📋 All reminder IDs (sorted):', sortedReminders.map(r => r.id));
+          console.log('📋 Most recent backend reminder:', sortedReminders[0]);
+          console.log('📋 All backend reminder IDs:', sortedReminders.map(r => r.id));
         } else {
           console.log('⚠️ No reminders found in backend response');
         }
@@ -112,6 +179,7 @@ export const useReminders = () => {
       }
     } catch (error) {
       console.error('❌ Error fetching reminders:', error);
+      // Don't clear existing reminders on error - keep local state intact
     } finally {
       setLoading(false);
     }
@@ -129,14 +197,15 @@ export const useReminders = () => {
     }
   }, [fetchReminders]);
 
-  // Auto-refresh reminders every 30 seconds to catch triggered reminders (reduced frequency)
+  // Auto-refresh reminders every 60 seconds to catch triggered reminders (reduced frequency)
+  // This prevents too frequent refreshes that could interfere with newly created reminders
   useEffect(() => {
     const interval = setInterval(() => {
       if (hasFetched.current) {
         console.log('🔄 Auto-refreshing reminders...');
         fetchReminders();
       }
-    }, 30000); // Refresh every 30 seconds (reduced from 10 seconds)
+    }, 60000); // Refresh every 60 seconds (reduced from 30 seconds)
 
     return () => clearInterval(interval);
   }, [fetchReminders]);
@@ -215,6 +284,14 @@ export const useReminders = () => {
         setReminders(prev => {
           console.log('🔔 addReminder - Adding new reminder to state:', newReminder);
           console.log('🔔 addReminder - Previous reminders count:', prev.length);
+          
+          // Check if reminder already exists to prevent duplicates
+          const exists = prev.some(r => r.id === newReminder.id);
+          if (exists) {
+            console.log('🔔 addReminder - Reminder already exists, skipping duplicate');
+            return prev;
+          }
+          
           const updated = [...prev, newReminder];
           // Sort by creation date (most recent first)
           const sorted = updated.sort((a, b) => 
@@ -231,7 +308,11 @@ export const useReminders = () => {
 
         return newReminder;
       } else {
-        throw new Error('Failed to create reminder');
+        console.error('🔔 Invalid backend response for reminder creation:', {
+          type: response.type,
+          hasData: !!response.data
+        });
+        throw new Error(`Failed to create reminder: Backend returned type '${response.type}' instead of 'reminder_created'`);
       }
     } catch (error) {
       console.error('Error adding reminder:', error);
@@ -251,6 +332,13 @@ export const useReminders = () => {
       };
 
       setReminders(prev => {
+        // Check if reminder already exists to prevent duplicates
+        const exists = prev.some(r => r.id === newReminder.id);
+        if (exists) {
+          console.log('🔔 addReminder (fallback) - Reminder already exists, skipping duplicate');
+          return prev;
+        }
+        
         const updated = [...prev, newReminder];
         // Sort by creation date (most recent first)
         return updated.sort((a, b) => 
@@ -291,15 +379,10 @@ export const useReminders = () => {
     });
     
     try {
-      // Call backend API to delete the reminder
-      const response = await fetch(`http://localhost:3000/api/reminders/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Call backend API to delete the reminder using apiService
+      const response = await apiService.deleteReminder(id);
 
-      if (response.ok) {
+      if (response.success) {
         toast({
           title: "Reminder Deleted",
           description: "The reminder has been removed.",
@@ -307,8 +390,7 @@ export const useReminders = () => {
         console.log('✅ Reminder deleted successfully');
       } else {
         // If backend delete failed, restore the reminder to local state
-        const errorData = await response.json();
-        console.error('❌ Backend delete failed:', errorData);
+        console.error('❌ Backend delete failed:', response);
         
         // Restore the reminder to UI
         if (reminderToDelete) {
@@ -351,6 +433,18 @@ export const useReminders = () => {
 
     const newStatus = !reminder.isCompleted;
     
+    // If marking as completed, delete the reminder instead of just updating status
+    if (newStatus) {
+      // Use the existing deleteReminder function which handles UI updates and backend calls
+      await deleteReminder(id);
+      toast({
+        title: "Reminder Completed",
+        description: "Great job! The reminder has been removed.",
+      });
+      return;
+    }
+    
+    // If marking as incomplete (reopening), update the status
     // Optimistically update UI
     setReminders(prev => 
       prev.map(r => 
@@ -361,23 +455,16 @@ export const useReminders = () => {
     );
 
     try {
-      // Call backend API to update the reminder status
-      const response = await fetch(`http://localhost:3000/api/reminders/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: newStatus ? 'completed' : 'pending'
-        }),
+      // Call backend API to update the reminder status using apiService
+      const response = await apiService.updateReminder(id, {
+        status: newStatus ? 'completed' : 'pending'
       });
 
-      if (response.ok) {
+      if (response.success) {
         toast({
-          title: newStatus ? "Reminder Completed" : "Reminder Reopened",
-          description: newStatus ? "Great job!" : "Reminder is now pending.",
+          title: "Reminder Reopened",
+          description: "Reminder is now pending.",
         });
-        console.log('✅ Reminder status updated successfully');
       } else {
         // If backend update failed, revert the UI change
         setReminders(prev => 
@@ -388,8 +475,7 @@ export const useReminders = () => {
           )
         );
         
-        const errorData = await response.json();
-        console.error('❌ Backend update failed:', errorData);
+        console.error('❌ Backend update failed:', response);
         
         toast({
           title: "Update Failed",
@@ -415,7 +501,7 @@ export const useReminders = () => {
         variant: "destructive",
       });
     }
-  }, []);
+  }, [reminders, deleteReminder]);
 
   const getPendingReminders = useCallback(() => {
     const pending = reminders.filter(r => !r.isCompleted);
@@ -424,7 +510,7 @@ export const useReminders = () => {
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     console.log('🔔 getPendingReminders - Total reminders:', reminders.length, 'Pending:', sorted.length);
-    console.log('🔔 All reminders:', reminders.map(r => ({ id: r.id, text: r.text, isCompleted: r.isCompleted, status: r.status })));
+    console.log('🔔 All reminders:', reminders.map(r => ({ id: r.id, text: r.text, isCompleted: r.isCompleted })));
     console.log('🔔 Pending reminders:', sorted.map(r => ({ id: r.id, text: r.text, isCompleted: r.isCompleted })));
     return sorted;
   }, [reminders]);
@@ -470,18 +556,12 @@ export const useReminders = () => {
     );
 
     try {
-      // Call backend API to update the reminder
-      const response = await fetch(`http://localhost:3000/api/reminders/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          datetime: newDueTime.toISOString()
-        }),
+      // Call backend API to update the reminder using apiService
+      const response = await apiService.updateReminder(id, {
+        datetime: newDueTime.toISOString()
       });
 
-      if (response.ok) {
+      if (response.success) {
         toast({
           title: "Reminder Snoozed",
           description: `Reminder postponed for ${minutes} minutes`,
@@ -502,8 +582,7 @@ export const useReminders = () => {
           )
         );
         
-        const errorData = await response.json();
-        console.error('❌ Backend snooze failed:', errorData);
+        console.error('❌ Backend snooze failed:', response);
         
         toast({
           title: "Snooze Failed",

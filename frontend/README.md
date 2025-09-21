@@ -1,158 +1,73 @@
-# Personal Assistant - React Native Frontend
+# Welcome to your Lovable project
 
-A modern React Native frontend for the Personal Assistant API, built with Expo and featuring a beautiful glassmorphism UI design.
+## Project info
 
-## Features
+**URL**: https://lovable.dev/projects/88e4d542-dfb1-4a8b-aea1-7464b22e5153
 
-- 💬 **Chat Interface**: Natural language conversation with the AI assistant
-- 📝 **Activity Logs**: View and manage your logged activities
-- 🔔 **Reminders**: Set, view, and manage reminders
-- 🎨 **Glassmorphism UI**: Modern, clean design with glass-like effects
-- 📱 **Cross-Platform**: Works on iOS and Android via Expo Go
-- 🔧 **TypeScript**: Fully typed for better development experience
+## How can I edit this code?
 
-## Tech Stack
+There are several ways of editing your application.
 
-- **React Native** with **Expo**
-- **TypeScript** for type safety
-- **React Navigation** for navigation
-- **Expo Blur** for glassmorphism effects
-- **Expo Linear Gradient** for beautiful gradients
-- **Vector Icons** for consistent iconography
+**Use Lovable**
 
-## Getting Started
+Simply visit the [Lovable Project](https://lovable.dev/projects/88e4d542-dfb1-4a8b-aea1-7464b22e5153) and start prompting.
 
-### Prerequisites
+Changes made via Lovable will be committed automatically to this repo.
 
-- Node.js (v16 or higher)
-- Expo CLI (`npm install -g @expo/cli`)
-- Expo Go app on your mobile device
+**Use your preferred IDE**
 
-### Installation
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+Follow these steps:
 
-3. Start the development server:
-   ```bash
-   npm start
-   ```
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
 
-4. Scan the QR code with Expo Go app on your mobile device
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
 
-### Backend Integration
+# Step 3: Install the necessary dependencies.
+npm i
 
-Make sure your backend server is running on `http://localhost:3000` before using the app. The frontend will automatically connect to the backend API endpoints.
-
-## Project Structure
-
-```
-src/
-├── components/          # Reusable UI components
-│   ├── GlassContainer.tsx
-│   ├── GlassButton.tsx
-│   ├── GlassInput.tsx
-│   ├── MessageBubble.tsx
-│   ├── LogCard.tsx
-│   └── ReminderCard.tsx
-├── screens/            # Main app screens
-│   ├── ChatScreen.tsx
-│   ├── LogsScreen.tsx
-│   └── RemindersScreen.tsx
-├── navigation/         # Navigation setup
-│   └── AppNavigator.tsx
-├── services/          # API services
-│   └── apiService.ts
-├── styles/            # Styling and themes
-│   ├── colors.ts
-│   └── glassmorphism.ts
-└── types/             # TypeScript type definitions
-    └── index.ts
+# Step 4: Start the development server with auto-reloading and an instant preview.
+npm run dev
 ```
 
-## Usage
+**Edit a file directly in GitHub**
 
-### Chat Interface
-- Type natural language messages to interact with the AI
-- Examples:
-  - "Log that I woke up at 7:30 AM"
-  - "Remind me to call mom at 9 PM"
-  - "What did I log today?"
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-### Activity Logs
-- View all your logged activities
-- Delete logs you no longer need
-- See timestamps and original input
+**Use GitHub Codespaces**
 
-### Reminders
-- View all your reminders
-- Mark reminders as completed
-- Delete reminders you no longer need
-- See completion status
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## API Endpoints
+## What technologies are used for this project?
 
-The app integrates with the following backend endpoints:
+This project is built with:
 
-- `POST /api/chat` - Send messages to the AI assistant
-- `GET /api/health` - Check API health status
-- `GET /` - Get API information
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-## Customization
+## How can I deploy this project?
 
-### Colors
-Edit `src/styles/colors.ts` to customize the color palette.
+Simply open [Lovable](https://lovable.dev/projects/88e4d542-dfb1-4a8b-aea1-7464b22e5153) and click on Share -> Publish.
 
-### Glassmorphism Effects
-Modify `src/styles/glassmorphism.ts` to adjust the glass-like effects.
+## Can I connect a custom domain to my Lovable project?
 
-### Components
-All components are fully customizable and can be modified in the `src/components/` directory.
+Yes, you can!
 
-## Development
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-### TypeScript
-The project uses TypeScript for better development experience. All types are defined in `src/types/index.ts`.
-
-### Styling
-The app uses a combination of:
-- Glassmorphism effects with blur and transparency
-- Linear gradients for visual appeal
-- Consistent spacing and typography
-- Vibrant color palette
-
-### Navigation
-Uses React Navigation with bottom tabs for easy navigation between screens.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Backend Connection Error**: Make sure the backend server is running on port 3000
-2. **Expo Go Connection**: Ensure your mobile device and computer are on the same network
-3. **TypeScript Errors**: Run `npx tsc --noEmit` to check for type errors
-
-### Performance
-
-- The app uses FlatList for efficient rendering of long lists
-- Images and gradients are optimized for mobile performance
-- Glassmorphism effects are hardware-accelerated where possible
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is part of the Personal Assistant application suite.
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)

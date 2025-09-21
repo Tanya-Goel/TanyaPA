@@ -3,6 +3,7 @@ import express from "express";
 import logRoutes from "./logRoutes.js";
 import reminderRoutes from "./reminderRoutes.js";
 import chatRoutes from "./chatRoutes.js";
+import pushRoutes from "./pushRoutes.js";
 
 const router = express.Router();
 
@@ -19,5 +20,6 @@ router.get("/health", (req, res) => {
 router.use("/chat", chatRoutes);
 router.use("/logs", logRoutes);
 router.use("/reminders", reminderRoutes);
+router.use("/push", pushRoutes);
 
 export default router;

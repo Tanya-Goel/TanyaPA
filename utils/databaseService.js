@@ -46,11 +46,87 @@ class DatabaseService {
     }
   }
 
+  async getLogs(query = {}) {
+    if (this.isMongoConnected) {
+      try {
+        return await Log.find(query).sort({ createdAt: -1 });
+      } catch (error) {
+        console.error('MongoDB log retrieval failed, falling back to in-memory:', error.message);
+        return this.getLogsInMemory(query);
+      }
+    } else {
+      return this.getLogsInMemory(query);
+    }
+  }
+
+  getLogsInMemory(query = {}) {
+    let logs = [...this.inMemoryStorage.logs];
+    
+    // Apply filters
+    if (query.createdAt) {
+      const { $gte, $lt } = query.createdAt;
+      logs = logs.filter(log => {
+        const logDate = new Date(log.createdAt);
+        return logDate >= $gte && logDate < $lt;
+      });
+    }
+    
+    if (query.category) {
+      logs = logs.filter(log => log.category === query.category);
+    }
+    
+    return logs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  async updateLog(id, updateData) {
+    if (this.isMongoConnected) {
+      try {
+        return await Log.findByIdAndUpdate(id, updateData, { new: true });
+      } catch (error) {
+        console.error('MongoDB log update failed, falling back to in-memory:', error.message);
+        return this.updateLogInMemory(id, updateData);
+      }
+    } else {
+      return this.updateLogInMemory(id, updateData);
+    }
+  }
+
+  updateLogInMemory(id, updateData) {
+    const index = this.inMemoryStorage.logs.findIndex(log => log._id === id);
+    if (index !== -1) {
+      this.inMemoryStorage.logs[index] = { ...this.inMemoryStorage.logs[index], ...updateData };
+      return this.inMemoryStorage.logs[index];
+    }
+    return null;
+  }
+
+  async deleteLog(id) {
+    if (this.isMongoConnected) {
+      try {
+        return await Log.findByIdAndDelete(id);
+      } catch (error) {
+        console.error('MongoDB log deletion failed, falling back to in-memory:', error.message);
+        return this.deleteLogInMemory(id);
+      }
+    } else {
+      return this.deleteLogInMemory(id);
+    }
+  }
+
+  deleteLogInMemory(id) {
+    const index = this.inMemoryStorage.logs.findIndex(log => log._id === id);
+    if (index !== -1) {
+      return this.inMemoryStorage.logs.splice(index, 1)[0];
+    }
+    return null;
+  }
+
   createLogInMemory(data) {
     const log = {
       _id: Date.now().toString(),
       ...data,
-      date: new Date(),
+      date: data.date || new Date().toISOString().split('T')[0],
+      created: new Date().toLocaleTimeString(),
       toObject: () => log,
       toJSON: () => log
     };
@@ -62,8 +138,11 @@ class DatabaseService {
     if (this.isMongoConnected) {
       try {
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return await Log.find({ date: { $gte: today } }).sort({ date: -1 });
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0, 0);
+        return await Log.find({ 
+          createdAt: { $gte: startOfDay, $lt: endOfDay } 
+        }).sort({ createdAt: -1 });
       } catch (error) {
         console.error('MongoDB log retrieval failed, falling back to in-memory:', error.message);
         return this.getLogsTodayInMemory();
@@ -75,8 +154,12 @@ class DatabaseService {
 
   getLogsTodayInMemory() {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return this.inMemoryStorage.logs.filter(log => log.date >= today);
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0, 0);
+    return this.inMemoryStorage.logs.filter(log => {
+      const logDate = new Date(log.createdAt);
+      return logDate >= startOfDay && logDate < endOfDay;
+    });
   }
 
   async getAllLogs(options = {}) {
@@ -135,12 +218,96 @@ class DatabaseService {
     }
   }
 
+  async getReminders(query = {}) {
+    if (this.isMongoConnected) {
+      try {
+        return await Reminder.find(query).sort({ datetime: 1 });
+      } catch (error) {
+        console.error('MongoDB reminder retrieval failed, falling back to in-memory:', error.message);
+        return this.getRemindersInMemory(query);
+      }
+    } else {
+      return this.getRemindersInMemory(query);
+    }
+  }
+
+  getRemindersInMemory(query = {}) {
+    let reminders = [...this.inMemoryStorage.reminders];
+    
+    // Apply filters
+    if (query.status) {
+      reminders = reminders.filter(reminder => reminder.status === query.status);
+    }
+    
+    if (query.datetime) {
+      const { $gte, $lt } = query.datetime;
+      reminders = reminders.filter(reminder => {
+        const reminderDate = new Date(reminder.datetime);
+        return reminderDate >= $gte && reminderDate < $lt;
+      });
+    }
+    
+    return reminders.sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  }
+
+  async updateReminder(id, updateData) {
+    if (this.isMongoConnected) {
+      try {
+        return await Reminder.findByIdAndUpdate(id, updateData, { new: true });
+      } catch (error) {
+        console.error('MongoDB reminder update failed, falling back to in-memory:', error.message);
+        return this.updateReminderInMemory(id, updateData);
+      }
+    } else {
+      return this.updateReminderInMemory(id, updateData);
+    }
+  }
+
+  updateReminderInMemory(id, updateData) {
+    const index = this.inMemoryStorage.reminders.findIndex(reminder => reminder._id === id);
+    if (index !== -1) {
+      this.inMemoryStorage.reminders[index] = { ...this.inMemoryStorage.reminders[index], ...updateData };
+      return this.inMemoryStorage.reminders[index];
+    }
+    return null;
+  }
+
+  async deleteReminder(id) {
+    if (this.isMongoConnected) {
+      try {
+        return await Reminder.findByIdAndDelete(id);
+      } catch (error) {
+        console.error('MongoDB reminder deletion failed, falling back to in-memory:', error.message);
+        return this.deleteReminderInMemory(id);
+      }
+    } else {
+      return this.deleteReminderInMemory(id);
+    }
+  }
+
+  deleteReminderInMemory(id) {
+    const index = this.inMemoryStorage.reminders.findIndex(reminder => reminder._id === id);
+    if (index !== -1) {
+      return this.inMemoryStorage.reminders.splice(index, 1)[0];
+    }
+    return null;
+  }
+
   createReminderInMemory(data) {
+    const now = new Date();
     const reminder = {
       _id: Date.now().toString(),
       ...data,
-      date: new Date(),
-      completed: false,
+      datetime: data.datetime || now,
+      status: data.status || 'pending',
+      // Legacy fields for backward compatibility - preserve full time with seconds
+      date: data.date || now.toISOString().split('T')[0],
+      time: data.time || now.toTimeString().slice(0, 8), // Include seconds: HH:MM:SS
+      completed: data.status === 'completed',
+      notified: data.notified || false,
+      voiceEnabled: data.voiceEnabled !== false,
+      repeatCount: data.repeatCount || 1,
+      snoozeCount: data.snoozeCount || 0,
       toObject: () => reminder,
       toJSON: () => reminder
     };
@@ -152,8 +319,11 @@ class DatabaseService {
     if (this.isMongoConnected) {
       try {
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return await Reminder.find({ date: { $gte: today } }).sort({ date: -1 });
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+        const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0, 0);
+        return await Reminder.find({ 
+          datetime: { $gte: startOfDay, $lt: endOfDay } 
+        }).sort({ datetime: 1 });
       } catch (error) {
         console.error('MongoDB reminder retrieval failed, falling back to in-memory:', error.message);
         return this.getRemindersTodayInMemory();
@@ -165,8 +335,12 @@ class DatabaseService {
 
   getRemindersTodayInMemory() {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return this.inMemoryStorage.reminders.filter(reminder => reminder.date >= today);
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 0, 0, 0, 0);
+    return this.inMemoryStorage.reminders.filter(reminder => {
+      const reminderDate = new Date(reminder.datetime);
+      return reminderDate >= startOfDay && reminderDate < endOfDay;
+    });
   }
 
   async getAllReminders(options = {}) {

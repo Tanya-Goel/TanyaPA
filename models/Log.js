@@ -1,29 +1,28 @@
-// models/Log.js
+// models/Log.js - Enhanced to match requirements
 import mongoose from "mongoose";
 
 const logSchema = new mongoose.Schema({
-  action: { 
+  text: { 
     type: String, 
     required: true 
   },
-  time: { 
-    type: String, 
-    required: true 
+  category: {
+    type: String,
+    required: false,
+    default: 'general'
   },
-  date: { 
-    type: Date, 
-    default: Date.now 
-  },
-  originalInput: { 
-    type: String 
-  }, // Store the original natural language input
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
 }, {
   timestamps: true
 });
 
 // Add indexes for better performance
-logSchema.index({ date: 1 });
-logSchema.index({ action: 1 });
+logSchema.index({ createdAt: 1 });
+logSchema.index({ category: 1 });
+logSchema.index({ text: 1 });
 
 const Log = mongoose.model("Log", logSchema);
 

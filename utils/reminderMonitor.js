@@ -52,14 +52,15 @@ class ReminderMonitor {
       
       for (const reminder of reminders) {
         if (this.isReminderDue(reminder, currentTimeString, currentDateString, now)) {
+          console.log(`🔔 Found due reminder: ${reminder.text} (ID: ${reminder._id})`);
           // Mark as notified BEFORE triggering to prevent duplicates
           await this.markReminderAsNotified(reminder._id);
           await this.triggerReminder(reminder);
         }
       }
       
-      // Clean up old reminders (older than 7 days)
-      await this.cleanupOldReminders();
+      // Clean up old reminders (older than 7 days) - temporarily disabled to fix errors
+      // await this.cleanupOldReminders();
     } catch (error) {
       console.error('❌ Error checking reminders:', error);
     }
@@ -108,9 +109,9 @@ class ReminderMonitor {
     // New system: check datetime field
     if (reminder.datetime) {
       const reminderTime = new Date(reminder.datetime);
-      // Trigger when the reminder time is reached or just passed (within 1 second tolerance)
+      // Trigger when the reminder time is reached or just passed (within 30 seconds tolerance)
       const timeDiff = now.getTime() - reminderTime.getTime();
-      return timeDiff >= 0 && timeDiff <= 1000; // Within 1 second of exact time
+      return timeDiff >= 0 && timeDiff <= 30000; // Within 30 seconds of exact time
     }
     
     // Legacy system: check time and date fields
@@ -148,10 +149,12 @@ class ReminderMonitor {
         message: `🚨 REMINDER ALERT: ${reminder.text}`
       });
       
-      // Reminder is already marked as notified in checkReminders to prevent duplicates
-      console.log(`✅ Reminder triggered: ${reminder.text}`);
+      // Auto-complete the reminder after a delay to allow user interaction
+      setTimeout(async () => {
+        await this.autoCompleteReminder(reminder._id);
+        console.log(`✅ Reminder auto-completed after delay: ${reminder.text}`);
+      }, 300000); // 5 minute delay to allow voice alerts to play and user to interact
       
-      // Log the reminder trigger
       console.log(`✅ Reminder triggered: ${reminder.text}`);
       
     } catch (error) {
@@ -163,16 +166,41 @@ class ReminderMonitor {
   async markReminderAsNotified(reminderId) {
     try {
       if (databaseService.isMongoConnected) {
-        await Reminder.findByIdAndUpdate(reminderId, { notified: true });
+        const result = await Reminder.findByIdAndUpdate(reminderId, { notified: true }, { new: true });
+        console.log(`✅ Marked reminder ${reminderId} as notified:`, result ? 'success' : 'not found');
       } else {
         // Update in-memory storage
         const reminder = databaseService.inMemoryStorage.reminders.find(r => r._id === reminderId);
         if (reminder) {
           reminder.notified = true;
+          console.log(`✅ Marked reminder ${reminderId} as notified in memory`);
         }
       }
     } catch (error) {
       console.error('❌ Error marking reminder as notified:', error);
+    }
+  }
+
+  // Auto-complete reminder after delay
+  async autoCompleteReminder(reminderId) {
+    try {
+      if (databaseService.isMongoConnected) {
+        await Reminder.findByIdAndUpdate(reminderId, { 
+          status: 'completed',
+          completedAt: new Date(),
+          dismissedBy: 'auto'
+        });
+      } else {
+        // Update in-memory storage
+        const reminder = databaseService.inMemoryStorage.reminders.find(r => r._id === reminderId);
+        if (reminder) {
+          reminder.status = 'completed';
+          reminder.completedAt = new Date();
+          reminder.dismissedBy = 'auto';
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error auto-completing reminder:', error);
     }
   }
 
@@ -217,7 +245,6 @@ class ReminderMonitor {
       const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
       
       if (databaseService.isMongoConnected) {
-        const Reminder = databaseService.getReminderModel();
         const result = await Reminder.deleteMany({
           $or: [
             // Delete completed reminders older than 7 days

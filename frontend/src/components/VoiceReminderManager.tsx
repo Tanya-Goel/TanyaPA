@@ -49,10 +49,13 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
       Notification.requestPermission().then(permission => {
         if (permission === 'granted') {
           console.log('🔔 Notification permission granted');
-          toast({
-            title: "Notifications Enabled",
-            description: "You'll receive reminder alerts even when the app is in the background!",
-          });
+          // Use setTimeout to move toast call out of render cycle
+          setTimeout(() => {
+            toast({
+              title: "Notifications Enabled",
+              description: "You'll receive reminder alerts even when the app is in the background!",
+            });
+          }, 0);
         } else {
           console.log('🔔 Notification permission denied');
         }
@@ -104,15 +107,21 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
         ws.onopen = () => {
           console.log('🔌 WebSocket connected for reminder notifications');
           setWsConnection(ws);
+          
+          // Send a test message to verify connection
+          ws.send(JSON.stringify({ type: 'ping' }));
         };
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
             console.log('📨 WebSocket message received:', data);
+            console.log('📨 Raw WebSocket data:', event.data);
             
             if (data.type === 'reminder_alert' && data.reminder) {
               console.log('🔔 Processing reminder alert from WebSocket:', data.reminder);
+              console.log('🔔 Reminder ID:', data.reminder.id);
+              console.log('🔔 Reminder text:', data.reminder.text);
               
               // Convert backend reminder to frontend format
               const reminder: Reminder = {
@@ -133,36 +142,42 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
                 if (!exists) {
                   console.log('🔔 Adding reminder from WebSocket to active reminders:', reminder.text);
                   
-                  // Check if we've already notified for this reminder
-                  if (!notifiedReminders.has(reminder.id)) {
-                    // Play voice reminder if voice is enabled
-                    if (isVoiceEnabled && reminder.voiceEnabled !== false) {
-                      console.log('🔊 Playing voice reminder:', reminder.text);
-                      
-                      // Force enable speech synthesis for reminder alerts
-                      textToSpeechService.enableSpeechSynthesis();
-                      
-                      // Try to play voice reminder with no delay
-                      textToSpeechService.speakReminder(reminder.text, {
-                        repeat: false,
-                        repeatCount: 1,
-                        delay: 0
-                      }).then(() => {
-                        console.log('🔊 Voice reminder completed successfully');
-                      }).catch(error => {
-                        console.error('🔊 Voice reminder failed:', error);
-                        // Don't show error toast for voice failures to avoid spam
-                      });
-                    } else {
-                      console.log('🔊 Voice reminder skipped - isVoiceEnabled:', isVoiceEnabled, 'reminder.voiceEnabled:', reminder.voiceEnabled);
-                    }
+                    // Check if we've already notified for this reminder
+                    if (!notifiedReminders.has(reminder.id)) {
+                      // Play voice reminder if voice is enabled
+                      if (isVoiceEnabled && reminder.voiceEnabled !== false) {
+                        console.log('🔊 Playing voice reminder:', reminder.text);
+                        
+                        // Force enable speech synthesis for reminder alerts
+                        textToSpeechService.enableSpeechSynthesis();
+                        
+                        // Stop any current speech to prevent interruptions
+                        textToSpeechService.stop();
+                        
+                        // Try to play voice reminder with no delay
+                        textToSpeechService.speakReminder(reminder.text, {
+                          repeat: false,
+                          repeatCount: 1,
+                          delay: 0
+                        }).then(() => {
+                          console.log('🔊 Voice reminder completed successfully');
+                        }).catch(error => {
+                          console.error('🔊 Voice reminder failed:', error);
+                          // Don't show error toast for voice failures to avoid spam
+                        });
+                      } else {
+                        console.log('🔊 Voice reminder skipped - isVoiceEnabled:', isVoiceEnabled, 'reminder.voiceEnabled:', reminder.voiceEnabled);
+                      }
                   
                     // Show simple toast notification only (no popup cards)
-                    toast({
-                      title: "🔔 Reminder",
-                      description: reminder.text,
-                      duration: 5000, // Show for 5 seconds
-                    });
+                    // Use setTimeout to move toast call out of render cycle
+                    setTimeout(() => {
+                      toast({
+                        title: "🔔 Reminder",
+                        description: reminder.text,
+                        duration: 5000, // Show for 5 seconds
+                      });
+                    }, 0);
                     
                     // Mark as notified
                     setNotifiedReminders(prev => new Set(prev).add(reminder.id));
@@ -184,10 +199,11 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
 
         ws.onerror = (error) => {
           console.error('❌ WebSocket error:', error);
+          console.error('❌ WebSocket readyState:', ws.readyState);
         };
 
-        ws.onclose = () => {
-          console.log('🔌 WebSocket disconnected');
+        ws.onclose = (event) => {
+          console.log('🔌 WebSocket disconnected:', event.code, event.reason);
           setWsConnection(null);
           // Reconnect after 3 seconds
           setTimeout(() => {
@@ -233,6 +249,14 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
                    !notifiedReminders.has(reminder.id)
       );
 
+      console.log('🔍 Checking due reminders:', {
+        totalReminders: reminders.length,
+        dueReminders: dueReminders.length,
+        newDueReminders: newDueReminders.length,
+        activeReminders: activeReminders.length,
+        notifiedReminders: notifiedReminders.size
+      });
+
       if (newDueReminders.length > 0) {
         console.log('🔔 Adding reminders from polling (fallback):', newDueReminders.map(r => r.text));
         
@@ -246,6 +270,9 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
               
               // Force enable speech synthesis for reminder alerts
               textToSpeechService.enableSpeechSynthesis();
+              
+              // Stop any current speech to prevent interruptions
+              textToSpeechService.stop();
               
               // Try to play voice reminder with no delay
               textToSpeechService.speakReminder(reminder.text, {
@@ -262,11 +289,14 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
               console.log('🔊 Voice reminder skipped (polling) - isVoiceEnabled:', isVoiceEnabled, 'reminder.voiceEnabled:', reminder.voiceEnabled);
             }
           
-            toast({
-              title: "🔔 Reminder",
-              description: reminder.text,
-              duration: 5000, // Show for 5 seconds
-            });
+            // Use setTimeout to move toast call out of render cycle
+            setTimeout(() => {
+              toast({
+                title: "🔔 Reminder",
+                description: reminder.text,
+                duration: 5000, // Show for 5 seconds
+              });
+            }, 0);
             
             // Mark as notified
             setNotifiedReminders(prev => new Set(prev).add(reminder.id));
@@ -310,10 +340,12 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
           newSet.delete(reminderId);
           return newSet;
         });
-        toast({
-          title: "Reminder Dismissed",
-          description: "Reminder has been marked as completed.",
-        });
+        setTimeout(() => {
+          toast({
+            title: "Reminder Dismissed",
+            description: "Reminder has been marked as completed.",
+          });
+        }, 0);
       } else {
         console.error('❌ Failed to dismiss reminder');
         // Fallback to delete if dismiss fails
@@ -602,6 +634,105 @@ export const VoiceReminderManager: React.FC<VoiceReminderManagerProps> = ({ clas
                 >
                   <Volume2 className="h-4 w-4 mr-2" />
                   Test Voice Directly
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    console.log('🔔 Testing reminder notification flow...');
+                    
+                    // Create a test reminder that triggers immediately
+                    const testReminder: Reminder = {
+                      id: 'test-' + Date.now(),
+                      text: 'Test reminder notification - check console for logs',
+                      dueTime: new Date(),
+                      isRecurring: false,
+                      isCompleted: false,
+                      createdAt: new Date(),
+                      priority: 'medium',
+                      voiceEnabled: true,
+                      repeatCount: 1,
+                    };
+                    
+                    // Add to active reminders to trigger notification flow
+                    setActiveReminders(prev => [...prev, testReminder]);
+                    
+                    // Play voice reminder
+                    if (isVoiceEnabled) {
+                      textToSpeechService.enableSpeechSynthesis();
+                      try {
+                        await textToSpeechService.speakReminder(testReminder.text, {
+                          repeat: false,
+                          repeatCount: 1,
+                          delay: 500
+                        });
+                        console.log('🔊 Test reminder voice played successfully');
+                      } catch (error) {
+                        console.error('🔊 Test reminder voice failed:', error);
+                      }
+                    }
+                    
+                    // Show toast
+                    toast({
+                      title: "🔔 Test Reminder Alert",
+                      description: testReminder.text,
+                      duration: 10000,
+                    });
+                    
+                    // Mark as notified
+                    setNotifiedReminders(prev => new Set(prev).add(testReminder.id));
+                    
+                    console.log('🔔 Test reminder notification flow completed');
+                  }}
+                  className="w-full"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Test Reminder Flow
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    console.log('🔔 Creating test reminder via API...');
+                    
+                    try {
+                      // Create a reminder that triggers in 5 seconds
+                      const response = await fetch('http://localhost:3000/api/reminders', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          text: 'Test reminder from frontend button',
+                          datetime: new Date(Date.now() + 5000).toISOString(),
+                          voiceEnabled: true,
+                          repeatCount: 1
+                        }),
+                      });
+                      
+                      const result = await response.json();
+                      console.log('🔔 Reminder created:', result);
+                      
+                      toast({
+                        title: "🔔 Test Reminder Created",
+                        description: "Reminder will trigger in 5 seconds. Check console for WebSocket messages.",
+                        duration: 8000,
+                      });
+                    } catch (error) {
+                      console.error('🔔 Error creating reminder:', error);
+                      toast({
+                        title: "🔔 Error",
+                        description: "Failed to create test reminder",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Create Test Reminder
                 </Button>
                 
                 <Button

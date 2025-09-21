@@ -278,6 +278,9 @@ class TextToSpeechService {
           } else if (event.error === 'language-unavailable') {
             console.log('🔊 Language unavailable, giving up to prevent recursion');
             resolve(); // Don't retry to prevent recursion
+          } else if (event.error === 'interrupted') {
+            console.log('🔊 Speech synthesis interrupted, but continuing...');
+            resolve(); // Don't break the flow for interruptions
           } else {
             console.warn('🔊 Speech synthesis error, but continuing:', event.error);
             resolve(); // Always resolve to prevent breaking the flow
@@ -374,6 +377,18 @@ class TextToSpeechService {
       this.currentUtterance = null;
       console.log('🔊 Speech stopped');
     }
+  }
+
+  // Stop all speech and clear queue
+  stopAll(): void {
+    if (this.synthesis) {
+      this.synthesis.cancel();
+    }
+    this.isSpeaking = false;
+    this.currentUtterance = null;
+    this.pendingSpeakRequests = [];
+    this.isProcessingPendingRequests = false;
+    console.log('🔊 All speech stopped and queue cleared');
   }
 
   // Check if currently speaking

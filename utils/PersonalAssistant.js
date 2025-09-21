@@ -285,6 +285,10 @@ class PersonalAssistant {
         }
         
         const targetTime = new Date();
+        const currentTime = new Date();
+        
+        console.log('🕐 Current time:', currentTime.toISOString());
+        console.log('🕐 Adding', amount, unit, 'to current time');
         
         if (unit.startsWith('minute') || unit.startsWith('min')) {
           targetTime.setMinutes(targetTime.getMinutes() + amount);
@@ -294,7 +298,8 @@ class PersonalAssistant {
           targetTime.setHours(targetTime.getHours() + amount);
         }
         
-        // Debug logging to check date creation
+        console.log('🕐 Target time calculated:', targetTime.toISOString());
+        console.log('🕐 Time difference (ms):', targetTime.getTime() - currentTime.getTime());
         
         // Ensure we have a valid date
         if (isNaN(targetTime.getTime())) {
